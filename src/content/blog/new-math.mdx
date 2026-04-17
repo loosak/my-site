@@ -1,0 +1,53 @@
+---
+title: "Proč se stroje učí"
+date: 2026-04-17
+description: "Principy strojového učení, na kterých stojí umělá inteligence"
+tags: ["astro", "webdev", "dx"]
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+
+| Some books about the development of neural networks describe the underlying mathematics while others describe the social history. This book presents the mathematics in the context of the social history. **_It is a masterpiece._**
+—**Geoffrey Hinton, deep learning pioneer, Turing Award winner**
+
+[Anil Ananthaswamy](https://www.ivysehrad.cz/autori/89593264/anil-ananthaswamy/)
+
+# Matrix
+
+$$
+\mathbf{A} 
+= 
+\left[
+\begin{array}{cccc}
+a_{11} & a_{12} & \cdots & a_{1n} \\
+a_{21} & a_{22} & \cdots & a_{2n} \\
+\vdots & \vdots & \ddots & \vdots \\
+a_{m1} & a_{m2} & \cdots & a_{mn}
+\end{array}
+\right]
+
+=
+
+\left(
+\begin{array}{cccc}
+a_{11} & a_{12} & \cdots & a_{1n} \\
+a_{21} & a_{22} & \cdots & a_{2n} \\
+\vdots & \vdots & \ddots & \vdots \\
+a_{m1} & a_{m2} & \cdots & a_{mn}
+\end{array}
+\right)
+
+=
+
+\left( a_{ij} \right) \in \mathbb{R}^{m \times n}
+$$
+https://github.com/mladen/practicing-da-ds-ml-ai
+
+##### Matrix definitions
+
+[](https://github.com/LiorSinai/liorsinai.github.io/blob/master/_posts/2021-11-05-quaternion-1-intro.md#matrix-definitions)
+
+$$
+\left[ R_{\psi} = \begin{bmatrix} \cos(\psi) & -\sin(\psi) & 0 \\ \sin(\psi) & \phantom{+}\cos(\psi) & 0 \\ 0 & 0 & 1 \end{bmatrix} ] [ R_{\theta} = \begin{bmatrix} \phantom{+}\cos(\theta) & 0 & \sin(\theta) \\ 0 & 1 & 0 \\ -\sin(\theta) & 0 & \cos(\theta) \end{bmatrix} ] [ R_{\phi} = \begin{bmatrix} 1 & 0 & 0 \\ 0 & \cos(\phi) & -\sin(\phi) \\ 0 & \sin(\phi) & \phantom{+}\cos(\phi) \end{bmatrix} \right]
+$$
+

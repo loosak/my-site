@@ -1,0 +1,51 @@
+---
+import { getCollection } from 'astro:content';
+import '../../styles/global.css';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+---
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Blog</title>
+  </head>
+  <body class="bg-white text-neutral-900 antialiased">
+    <main class="mx-auto max-w-2xl px-4 py-16">
+
+      <h1 class="mb-12 text-4xl font-bold tracking-tight">Writing</h1>
+
+      <ul class="list-none divide-y divide-neutral-100">
+        {posts.map(post => {
+          const formatted = post.data.date.toLocaleDateString('en-US', {
+            year: 'numeric', month: 'short', day: 'numeric',
+          });
+          return (
+            <li>
+              <a href={`/blog/${post.id.replace(/\.(md|mdx)$/, '')}`}
+                class="group flex items-start justify-between gap-6 py-5 -mx-4 px-4 rounded-lg hover:bg-neutral-50 transition-colors">
+                <div>
+                  <p class="font-medium group-hover:text-blue-600 transition-colors">
+                    {post.data.title}
+                  </p>
+                  {post.data.description && (
+                    <p class="mt-0.5 text-sm text-neutral-500 line-clamp-1">
+                      {post.data.description}
+                    </p>
+                  )}
+                  <div class="mt-2 flex gap-1.5 flex-wrap">
+                    {post.data.tags.map(tag => (
+                      <span class="text-xs text-neutral-400">#{tag}</span>
+                    ))}
+                  </div>
+                </div>
+                <time class="shrink-0 text-xs text-neutral-400 pt-0.5">{formatted}</time>
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+
+    </main>
+  </body>
+</html>

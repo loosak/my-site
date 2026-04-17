@@ -1,0 +1,7 @@
+@import "tailwindcss";
+
+/* Optional: custom theme tokens */
+@theme {
+  --color-brand: oklch(60% 0.2 250);
+  --font-sans: "Inter", sans-serif;
+}

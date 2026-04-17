@@ -1,5 +1,5 @@
 ---
-
+import Counter from '../components/Counter.svelte'
 ---
 
 <html lang="en">
@@ -13,5 +13,6 @@
 	</head>
 	<body>
 		<h1>Astro</h1>
+		<Counter client:load />     <!-- immediate -->
 	</body>
 </html>

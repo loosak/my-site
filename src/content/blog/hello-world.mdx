@@ -1,0 +1,30 @@
+---
+title: "Why I Switched to Astro"
+date: 2026-04-10
+description: "After years of Next.js, here's what finally changed my mind."
+tags: ["astro", "webdev", "dx"]
+---
+
+import Callout from '../../components/mdx/Callout.astro';
+
+Astro's islands architecture isn't just a clever idea — it's the first mental model
+that actually matches how I think about content-heavy sites.
+
+<Callout type="info">
+  Zero JS by default means your lighthouse score starts at 100 and you
+  deliberately opt *in* to interactivity, not opt out.
+</Callout>
+
+## The content layer
+
+The new content layer in v5+ is a genuine step change. Type-safe frontmatter,
+`getCollection`, and now remote loaders mean you can pull from any CMS without
+giving up the local-dev experience.
+
+```ts
+const posts = await getCollection('blog', ({ data }) => !data.draft);
+```
+
+## What I miss from Next
+
+Honestly? Not much. Parallel routes were nice. That's about it.
