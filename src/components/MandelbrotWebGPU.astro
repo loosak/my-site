@@ -1,0 +1,234 @@
+---
+---
+
+<style>
+  #mandelbrot-canvas {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    cursor: crosshair;
+    display: block;
+  }
+</style>
+
+<canvas id="mandelbrot-canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("mandelbrot-canvas") as HTMLCanvasElement;
+
+let centerX = -0.5;
+let centerY = 0.0;
+let scale   = 3.0;
+const maxIter = 256;
+
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = Math.floor(innerWidth  * dpr);
+  canvas.height = Math.floor(innerHeight * dpr);
+}
+
+if (!navigator.gpu) throw new Error("WebGPU not supported");
+const adapter = await navigator.gpu.requestAdapter();
+const device  = await adapter.requestDevice();
+
+const context = canvas.getContext("webgpu") as GPUCanvasContext;
+const format  = navigator.gpu.getPreferredCanvasFormat();
+context.configure({ device, format, alphaMode: "opaque" });
+
+const computeModule = device.createShaderModule({
+  code: `
+    struct Params {
+      centerX: f32, centerY: f32,
+      scale: f32,   aspect: f32,
+      width: f32,   height: f32,
+      maxIter: f32, _pad: f32,
+    };
+
+    @group(0) @binding(0) var<uniform> p: Params;
+    @group(0) @binding(1) var out: texture_storage_2d<rgba8unorm, write>;
+
+    @compute @workgroup_size(16, 16)
+    fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+      let px = gid.x; let py = gid.y;
+      if (f32(px) >= p.width || f32(py) >= p.height) { return; }
+
+      let cx = p.centerX + (f32(px) / p.width  - 0.5) * p.scale;
+      let cy = p.centerY + (f32(py) / p.height - 0.5) * p.scale / p.aspect;
+
+      var zr = 0.0; var zi = 0.0;
+      var iter: u32 = 0u;
+
+      loop {
+        if (f32(iter) >= p.maxIter) { break; }
+        let zr2 = zr*zr - zi*zi + cx;
+        let zi2 = 2.0*zr*zi + cy;
+        zr = zr2; zi = zi2;
+        if (zr*zr + zi*zi > 4.0) { break; }
+        iter += 1u;
+      }
+
+      var color: vec4<f32>;
+      if (f32(iter) >= p.maxIter) {
+        color = vec4<f32>(0.0, 0.0, 0.0, 1.0);
+      } else {
+        let t = f32(iter) / p.maxIter;
+        color = vec4<f32>(
+          9.0  * (1.0-t)*t*t*t,
+          15.0 * (1.0-t)*(1.0-t)*t*t,
+          8.5  * (1.0-t)*(1.0-t)*(1.0-t)*t,
+          1.0
+        );
+      }
+      textureStore(out, vec2<i32>(i32(px), i32(py)), color);
+    }
+  `,
+});
+
+const quadModule = device.createShaderModule({
+  code: `
+    @group(0) @binding(0) var img:  texture_2d<f32>;
+    @group(0) @binding(1) var samp: sampler;
+
+    struct VSOut { @builtin(position) pos: vec4<f32>, @location(0) uv: vec2<f32> };
+
+    @vertex fn vs(@builtin(vertex_index) i: u32) -> VSOut {
+      var pos = array<vec2<f32>,6>(vec2(-1,-1),vec2(1,-1),vec2(-1,1),vec2(-1,1),vec2(1,-1),vec2(1,1));
+      var uv  = array<vec2<f32>,6>(vec2(0,1),  vec2(1,1), vec2(0,0), vec2(0,0), vec2(1,1), vec2(1,0));
+      var o: VSOut; o.pos = vec4(pos[i],0,1); o.uv = uv[i]; return o;
+    }
+
+    @fragment fn fs(in: VSOut) -> @location(0) vec4<f32> {
+      return textureSample(img, samp, in.uv);
+    }
+  `,
+});
+
+const computePipeline = device.createComputePipeline({
+  layout: "auto",
+  compute: { module: computeModule, entryPoint: "main" },
+});
+
+const renderPipeline = device.createRenderPipeline({
+  layout: "auto",
+  vertex:   { module: quadModule, entryPoint: "vs" },
+  fragment: { module: quadModule, entryPoint: "fs", targets: [{ format }] },
+  primitive: { topology: "triangle-list" },
+});
+
+const sampler = device.createSampler({ magFilter: "linear", minFilter: "linear" });
+
+const paramBuffer = device.createBuffer({
+  size: 32,
+  usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+});
+
+let storageTexture: GPUTexture | null = null;
+let storageView:    GPUTextureView | null = null;
+
+function ensureStorageTexture(w: number, h: number) {
+  if (storageTexture?.width === w && storageTexture?.height === h) return;
+  storageTexture?.destroy();
+  storageTexture = device.createTexture({
+    size: [w, h],
+    format: "rgba8unorm",
+    usage: GPUTextureUsage.STORAGE_BINDING
+         | GPUTextureUsage.TEXTURE_BINDING
+         | GPUTextureUsage.RENDER_ATTACHMENT,
+  });
+  storageView = storageTexture.createView();
+}
+
+function renderFrame() {
+  const w = canvas.width;
+  const h = canvas.height;
+  ensureStorageTexture(w, h);
+
+  const buf = new Float32Array(8);
+  buf[0] = centerX; buf[1] = centerY;
+  buf[2] = scale;   buf[3] = w / h;
+  buf[4] = w;       buf[5] = h;
+  buf[6] = maxIter; buf[7] = 0;
+  device.queue.writeBuffer(paramBuffer, 0, buf);
+
+  const computeBindGroup = device.createBindGroup({
+    layout: computePipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: { buffer: paramBuffer } },
+      { binding: 1, resource: storageView! },
+    ],
+  });
+
+  const quadBindGroup = device.createBindGroup({
+    layout: renderPipeline.getBindGroupLayout(0),
+    entries: [
+      { binding: 0, resource: storageView! },
+      { binding: 1, resource: sampler },
+    ],
+  });
+
+  const encoder = device.createCommandEncoder();
+
+  const cp = encoder.beginComputePass();
+  cp.setPipeline(computePipeline);
+  cp.setBindGroup(0, computeBindGroup);
+  cp.dispatchWorkgroups(Math.ceil(w / 16), Math.ceil(h / 16));
+  cp.end();
+
+  const rp = encoder.beginRenderPass({
+    colorAttachments: [{
+      view: context.getCurrentTexture().createView(),
+      loadOp: "clear", storeOp: "store",
+    }],
+  });
+  rp.setPipeline(renderPipeline);
+  rp.setBindGroup(0, quadBindGroup);
+  rp.draw(6);
+  rp.end();
+
+  device.queue.submit([encoder.finish()]);
+}
+
+// --- Input ----------------------------------------------------------------
+let isDragging = false;
+let lastX = 0, lastY = 0;
+
+canvas.addEventListener("mousedown", e => {
+  isDragging = true; lastX = e.clientX; lastY = e.clientY;
+});
+window.addEventListener("mouseup", () => isDragging = false);
+
+window.addEventListener("mousemove", e => {
+  if (!isDragging) return;
+  centerX -= ((e.clientX - lastX) / canvas.width)  * scale;
+  centerY += ((e.clientY - lastY) / canvas.height) * scale;
+  lastX = e.clientX; lastY = e.clientY;
+  renderFrame();
+});
+
+canvas.addEventListener("wheel", e => {
+  e.preventDefault();
+  const px     = e.clientX * (canvas.width  / innerWidth);
+  const py     = e.clientY * (canvas.height / innerHeight);
+  const aspect = canvas.width / canvas.height;
+
+  const cxBefore = centerX + (px / canvas.width  - 0.5) * scale;
+  const cyBefore = centerY + (py / canvas.height - 0.5) * scale / aspect;
+
+  scale *= Math.exp(e.deltaY * 0.001);
+
+  centerX = cxBefore - (px / canvas.width  - 0.5) * scale;
+  centerY = cyBefore - (py / canvas.height - 0.5) * scale / aspect;
+
+  renderFrame();
+}, { passive: false });
+
+let raf: number;
+window.addEventListener("resize", () => {
+  resize();
+  cancelAnimationFrame(raf);
+  raf = requestAnimationFrame(renderFrame);
+});
+
+window.dispatchEvent(new Event("resize"));
+</script>
