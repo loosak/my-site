@@ -13,7 +13,7 @@ const posts = (await getCollection('blog', ({ data }) => !data.draft))
   <body class="bg-white text-neutral-900 antialiased">
     <main class="mx-auto max-w-2xl px-4 py-16">
 
-      <h1 class="mb-12 text-4xl font-bold tracking-tight">Writing</h1>
+      <h1 class="mb-12 text-4xl font-bold tracking-tight">Blog</h1>
 
       <ul class="list-none divide-y divide-neutral-100">
         {posts.map(post => {
